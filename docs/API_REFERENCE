@@ -1,0 +1,103 @@
+# RoadWatch API Reference
+
+Base URL: `http://localhost:8000`
+Interactive docs (Swagger UI): `http://localhost:8000/docs`
+
+---
+
+## Endpoints
+
+### GET /health
+Returns `{"status": "ok"}`. Use to confirm the server is running.
+
+---
+
+### GET /api/complaints
+Returns all complaints, newest first.
+
+**Query params:**
+| Param | Type | Description |
+|-------|------|-------------|
+| `status_filter` | string (optional) | Filter by status e.g. `Reported`, `Verified` |
+
+**Response:** array of Complaint objects (see schema below).
+
+---
+
+### POST /api/complaints
+Submit a new pothole report. Runs YOLO detection automatically.
+
+**Body:** `multipart/form-data`
+| Field | Type | Required |
+|-------|------|----------|
+| `photo` | file | ✅ |
+| `latitude` | float | ✅ |
+| `longitude` | float | ✅ |
+| `description` | string | ❌ |
+| `device_token` | string | ❌ (FCM token for push notifications) |
+
+**Response:** Complaint object with `severity`, `ai_confidence`, `ai_summary` filled in.
+
+---
+
+### GET /api/complaints/{id}
+Returns one complaint by UUID.
+
+---
+
+### PATCH /api/complaints/{id}
+Update status, department, or notes. Used by Admin Dashboard.
+
+**Body:** `application/json`
+```json
+{
+  "status": "Verified",
+  "assigned_department": "Public Works Department",
+  "notes": "Field team dispatched"
+}
+```
+All fields optional — only send what you want to change.
+Triggers FCM push notification to reporter if `status` changes.
+
+---
+
+### DELETE /api/complaints/{id}
+Deletes a complaint (spam / duplicate removal).
+
+---
+
+## Complaint schema
+
+```json
+{
+  "id": "uuid",
+  "image_url": "/uploads/abc123.jpg",
+  "latitude": 28.6139,
+  "longitude": 77.2090,
+  "description": "Large pothole near junction",
+
+  "severity": "High",
+  "ai_confidence": 0.87,
+  "detections_count": 3,
+  "ai_summary": "Detected 3 pothole region(s). Largest covers 42.1% of frame.",
+
+  "status": "Verified",
+  "assigned_department": "Public Works Department",
+  "notes": null,
+
+  "created_at": "2026-08-24T10:30:00",
+  "updated_at": "2026-08-24T11:00:00"
+}
+```
+
+## Status flow
+```
+Reported → Verified → Assigned → Repair in Progress → Resolved
+```
+
+## Severity levels
+| Level | Meaning |
+|-------|---------|
+| Low | Small crack or minor pothole — monitor |
+| Medium | Moderate pothole — schedule repair |
+| High | Large / dangerous pothole — urgent repair |

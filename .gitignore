@@ -1,0 +1,56 @@
+# ===== Secrets / env =====
+.env
+*.env
+!.env.examples
+servicekey.json
+*.pem
+*.key
+
+# ===== Python (backend) =====
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+*.sqlite3
+uploads/
+*.pt
+!yolov8n.pt
+
+# ===== Flutter / Dart (frontend) =====
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.packages
+frontend/build/
+frontend/.pub-cache/
+frontend/.pub/
+frontend/pubspec.lock
+
+# Android
+frontend/android/.gradle/
+frontend/android/app/debug
+frontend/android/app/profile
+frontend/android/app/release
+frontend/android/local.properties
+frontend/android/key.properties
+frontend/**/*.jks
+
+# iOS
+frontend/ios/Flutter/Flutter.framework
+frontend/ios/Flutter/Flutter.podspec
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/flutter_export_environment.sh
+
+# Web
+frontend/web/.dart_tool/
+
+# ===== IDE / OS =====
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db

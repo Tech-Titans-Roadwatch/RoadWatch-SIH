@@ -1,0 +1,156 @@
+# RoadWatch — Setup Guide
+**SIH 2026 · MB-04 · Team Tech Titans**
+Stack: Flutter · FastAPI · YOLO (Ultralytics) · PostgreSQL · Firebase · OpenStreetMap
+
+---
+
+## Folder numbering convention
+Every folder is prefixed with a number showing the logical order of the project:
+```
+1_frontend/   ← build and run this first (Flutter app)
+2_backend/    ← second (FastAPI + YOLO server)
+3_database/   ← reference SQL (auto-created by backend on first run)
+4_docs/       ← this guide and API reference
+```
+Inside each folder, files are numbered the same way:
+`1_home_screen.dart` (first screen) → `2_report_screen.dart` → etc.
+
+**Python note:** Python can't import modules whose names start with digits.
+The backend uses `importlib.import_module(...)` for cross-module imports so
+the numbered folder/file names stay visible in your editor but never cause an
+import error.
+
+---
+
+## Prerequisites
+| Tool | Version | Check |
+|------|---------|-------|
+| Python | 3.10+ | `python3 --version` |
+| Flutter SDK | 3.x | `flutter --version` |
+| PostgreSQL | 14+ | `psql --version` |
+| Node.js (optional, for Firebase CLI) | 18+ | `node --version` |
+
+---
+
+## 1. Backend setup
+
+```bash
+cd 2_backend
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create environment file
+cp .env.example .env            # then edit .env with your values
+```
+
+Edit `.env`:
+```
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/roadwatch
+YOLO_WEIGHTS_PATH=yolov8n.pt   # change to ./ml_weights/best.pt after training
+```
+
+Create the database:
+```bash
+createdb roadwatch              # or create via pgAdmin
+```
+
+Start the server:
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+- First request auto-downloads `yolov8n.pt` (~6 MB) and creates all tables.
+- Health check: `http://localhost:8000/health`
+- Interactive API docs: `http://localhost:8000/docs`
+
+Load sample data (optional):
+```bash
+psql -U postgres -d roadwatch -f ../3_database/2_seed.sql
+```
+
+---
+
+## 2. Flutter app setup
+
+```bash
+cd 1_frontend
+
+# Generate Android/iOS platform folders (safe to run on existing lib/)
+flutter create --org com.roadwatch --project-name roadwatch .
+
+# Install packages
+flutter pub get
+```
+
+Edit `lib/6_utils/1_constants.dart` — set `kBaseUrl`:
+- Android emulator: `http://127.0.0.1:8000` (default, maps to localhost)
+- Physical phone on Wi-Fi: `http://YOUR_COMPUTER_LAN_IP:8000`
+
+Run:
+```bash
+flutter run
+```
+
+---
+
+## 3. Firebase setup (push notifications)
+
+1. Create a project at console.firebase.google.com
+2. Add an Android app (package name: `com.roadwatch`)
+3. Download `google-services.json` → place in `1_frontend/android/app/`
+4. Project Settings → Service Accounts → Generate new private key
+   → save as `2_backend/firebase-service-account.json`
+5. Run `flutterfire configure` inside `1_frontend/` to auto-generate
+   `lib/firebase_options.dart`
+
+If you skip Firebase, everything else still works — notifications just no-op silently.
+
+---
+
+## 4. Full workflow test
+
+| Step | Where | What happens |
+|------|-------|-------------|
+| 1 | Flutter → Report | Take photo, capture GPS, submit |
+| 2 | Backend | YOLO runs, severity assigned, saved to DB |
+| 3 | Flutter → Live Map | Colored pin appears on OpenStreetMap |
+| 4 | Flutter → Admin | Change status, assign department |
+| 5 | Backend → Firebase | Push notification sent to reporting device |
+
+---
+
+## 5. YOLO model upgrade (before final demo)
+
+After Colab fine-tuning (see `4_docs/2_API_REFERENCE.md`):
+```bash
+cp ~/Downloads/best_pothole_v1.pt 2_backend/ml_weights/best.pt
+# Edit 2_backend/.env:
+# YOLO_WEIGHTS_PATH=./ml_weights/best.pt
+# Restart uvicorn
+```
+
+---
+
+## 6. Run tests
+```bash
+cd 2_backend
+pytest tests/ -v
+```
+
+---
+
+## 7. Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Backend import errors on numbered folders | Check Python is 3.10+; the importlib pattern requires it |
+| `createdb: command not found` | Use pgAdmin or `psql -U postgres -c "CREATE DATABASE roadwatch;"` |
+| Flutter can't reach backend | Check `kBaseUrl` in `1_constants.dart`; confirm port 8000 is open |
+| YOLO download fails | Manually download `yolov8n.pt` from Ultralytics releases and place in `2_backend/` |
+| Severity always "Low" | Expected with generic weights — see YOLO fine-tuning guide |
+| GPS fails on emulator | Android Studio → Extended Controls → Location → set mock coordinates |
