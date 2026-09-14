@@ -2,10 +2,14 @@ from PIL import Image
 import io
 import importlib
 import uuid
+import os
 from typing import List, Optional
 
+import cv2
+import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+from ultralytics import YOLO
 
 # Load all dependencies via importlib (numbered folder names can't be imported directly)
 _db_mod      = importlib.import_module("app.database.connection")
@@ -13,7 +17,7 @@ _schema_mod  = importlib.import_module("app.schemas.complaint")
 _svc_mod     = importlib.import_module("app.services.complaint_service")
 _notif_mod   = importlib.import_module("app.services.notification_service")
 
-get_db               = _db_mod.get_db
+get_db                 = _db_mod.get_db
 ComplaintOut         = _schema_mod.ComplaintOut
 ComplaintUpdate      = _schema_mod.ComplaintUpdate
 notify_status_change = _notif_mod.notify_status_change
@@ -46,8 +50,7 @@ async def create_complaint(
 ):
     photo_bytes = await photo.read()
     
-    
-   # ── Image Integrity & EXIF Verification ──────────────────────────────
+    # ── Image Integrity & EXIF Verification ──────────────────────────────
     try:
         img = Image.open(io.BytesIO(photo_bytes))  # type: ignore
         exif_data = img.getexif()
@@ -55,6 +58,28 @@ async def create_complaint(
             print("Warning: Uploaded image lacks standard camera EXIF metadata.")
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid image file format.")
+    # ─────────────────────────────────────────────────────────────────────
+
+   # ── YOLO Pothole Detection Validation ────────────────────────────────
+    weights_path = os.getenv("YOLO_WEIGHTS_PATH", "app/ml_weights/best.pt")
+    conf_threshold = float(os.getenv("YOLO_CONFIDENCE_THRESHOLD", 0.25))
+    
+    nparr = np.frombuffer(photo_bytes, np.uint8)
+    img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    if img_cv is None:
+        raise HTTPException(status_code=400, detail="Invalid image file format.")
+        
+    model = YOLO(weights_path)
+    results = model(img_cv, conf=conf_threshold)  # type: ignore
+    
+    # Check if any objects were detected
+    detections = results[0].boxes  # type: ignore
+    if len(detections) == 0:
+        raise HTTPException(
+            status_code=400, 
+            detail="No pothole detected in this image. Please upload a valid road image."
+        )
     # ─────────────────────────────────────────────────────────────────────
         
     return await _svc_mod.create_complaint(
@@ -78,12 +103,8 @@ def update_complaint(
     if not c:
         raise HTTPException(status_code=404, detail="Complaint not found")
     updated = _svc_mod.update_complaint(
-        db, c, update.status, update.assigned_department, update.notes
+        db, c, update.notes
     )
-    if update.status:
-        notify_status_change(
-            updated.reporter_device_token, str(updated.id), update.status
-        )
     return updated
 
 

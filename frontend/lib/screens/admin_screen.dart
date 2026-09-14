@@ -72,13 +72,12 @@ class _AdminScreenState extends State<AdminScreen> {
                     ? const Center(child: Text('No reports found.'))
                     : ListView.builder(
                         itemCount: _complaints.length,
-                        itemBuilder: (context, i) =>
-                            _AdminComplaintTile(
-                          complaint: _complaints[i],
-                          onStatusChanged: _updateStatus,
-                          onDeptChanged: _updateDepartment,
-                        ),
-                      ),
+                        itemBuilder: (context, i) {
+                          return _AdminComplaintTile(
+                            complaint: _complaints[i],
+                          );
+                        },
+                     ),
           ),
         ],
       ),
@@ -126,13 +125,9 @@ class _StatusFilterBar extends StatelessWidget {
 
 class _AdminComplaintTile extends StatelessWidget {
   final Complaint complaint;
-  final Future<void> Function(Complaint, String) onStatusChanged;
-  final Future<void> Function(Complaint, String) onDeptChanged;
 
   const _AdminComplaintTile({
     required this.complaint,
-    required this.onStatusChanged,
-    required this.onDeptChanged,
   });
 
   @override
@@ -146,42 +141,22 @@ class _AdminComplaintTile extends StatelessWidget {
           children: [
             ComplaintCard(complaint: complaint),
             const Divider(height: 16),
+            // Read-only status display (No dropdowns or options)
             Row(
               children: [
-                // Status dropdown
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: complaint.status,
-                    decoration: const InputDecoration(
-                        labelText: 'Status', isDense: true),
-                    items: kStatusFlow
-                        .map((s) => DropdownMenuItem(
-                            value: s,
-                            child: Text(s,
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color:
-                                        AppTheme.statusColor(s)))))
-                        .toList(),
-                    onChanged: (v) =>
-                        v != null ? onStatusChanged(complaint, v) : null,
-                  ),
+                const Text(
+                  "Status: ",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
-                const SizedBox(width: 10),
-                // Department dropdown
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: complaint.assignedDepartment,
-                    decoration: const InputDecoration(
-                        labelText: 'Department', isDense: true),
-                    items: kDepartments
-                        .map((d) => DropdownMenuItem(
-                            value: d,
-                            child: Text(d,
-                                style: const TextStyle(fontSize: 11))))
-                        .toList(),
-                    onChanged: (v) =>
-                        v != null ? onDeptChanged(complaint, v) : null,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    complaint.status,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                 ),
               ],

@@ -3,7 +3,7 @@
 -- This file is for reference, manual setup, or if you prefer raw psql.
 --
 -- Run manually:
---   psql -U postgres -d roadwatch -f database/1_schema.sql
+--   psql -U postgres -d roadwatch -f database/schema.sql
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -13,31 +13,32 @@ CREATE TYPE status_enum    AS ENUM (
 );
 
 CREATE TABLE complaints (
-    id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    image_url             TEXT NOT NULL,
-    latitude              DOUBLE PRECISION NOT NULL,
-    longitude             DOUBLE PRECISION NOT NULL,
-    description           TEXT,
+    id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    image_url               TEXT NOT NULL,
+    latitude                DOUBLE PRECISION NOT NULL,
+    longitude               DOUBLE PRECISION NOT NULL,
+    place_name              TEXT, -- Added for human-readable location
+    description             TEXT,
 
     -- AI output
-    severity              severity_enum,
-    ai_confidence         DOUBLE PRECISION,
-    detections_count      INTEGER DEFAULT 0,
-    ai_summary            TEXT,
+    severity                severity_enum,
+    ai_confidence           DOUBLE PRECISION,
+    detections_count        INTEGER DEFAULT 0,
+    ai_summary              TEXT,
 
     -- Workflow
-    status                status_enum DEFAULT 'Reported',
-    assigned_department   TEXT DEFAULT 'Unassigned',
-    notes                 TEXT,
+    status                  status_enum DEFAULT 'Reported',
+    assigned_department     TEXT DEFAULT 'Unassigned',
+    notes                   TEXT,
 
     -- Duplicate clustering
-    cluster_id            UUID,
+    cluster_id              UUID,
 
     -- Push notifications
-    reporter_device_token TEXT,
+    reporter_device_token   TEXT,
 
-    created_at            TIMESTAMP DEFAULT now(),
-    updated_at            TIMESTAMP DEFAULT now()
+    created_at              TIMESTAMP DEFAULT now(),
+    updated_at              TIMESTAMP DEFAULT now()
 );
 
 -- Indexes for common query patterns

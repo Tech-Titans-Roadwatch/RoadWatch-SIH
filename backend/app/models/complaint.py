@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone  # Include timezone
 
 from sqlalchemy import Column, String, Float, DateTime, Enum, Text, Integer
 from sqlalchemy.dialects.postgresql import UUID
@@ -23,20 +23,28 @@ class Status(str, enum.Enum):
     resolved = "Resolved"
 
 
+from datetime import datetime, timezone  # Include timezone
+# ... other imports ...
+
 class Complaint(Base):
     __tablename__ = "complaints"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     image_url = Column(String, nullable=False)
-    latitude = Column(Float, nullable=False)
-    longitude = Column(Float, nullable=False)
+    latitude = Column(Float, nullable=False)  # type: ignore
+    longitude = Column(Float, nullable=False)  # type: ignore
+    place_name = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
 
-    # AI output ─────────────────────────────────────────────────────────────
+    # AI output
     severity = Column(Enum(Severity), nullable=True)
-    ai_confidence = Column(Float, nullable=True)
+    ai_confidence = Column(Float, nullable=True)  # type: ignore
     detections_count = Column(Integer, default=0)
     ai_summary = Column(Text, nullable=True)
+
+    # Timestamps (replace .utcnow with timezone.utc to clear deprecation warnings)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Workflow ───────────────────────────────────────────────────────────────
     status = Column(Enum(Status), default=Status.reported)
@@ -50,5 +58,4 @@ class Complaint(Base):
     # Push notifications ─────────────────────────────────────────────────────
     reporter_device_token = Column(String, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    

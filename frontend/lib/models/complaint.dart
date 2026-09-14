@@ -3,6 +3,7 @@ class Complaint {
   final String imageUrl;
   final double latitude;
   final double longitude;
+  final String? placeName;
   final String? description;
 
   // AI output
@@ -17,12 +18,14 @@ class Complaint {
   final String? notes;
 
   final DateTime createdAt;
+  final DateTime updatedAt;
 
-  const Complaint({
+  Complaint({
     required this.id,
     required this.imageUrl,
     required this.latitude,
     required this.longitude,
+    this.placeName,
     this.description,
     this.severity,
     this.aiConfidence,
@@ -32,6 +35,7 @@ class Complaint {
     required this.assignedDepartment,
     this.notes,
     required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Complaint.fromJson(Map<String, dynamic> json) => Complaint(
@@ -39,6 +43,7 @@ class Complaint {
         imageUrl: json['image_url'] as String,
         latitude: (json['latitude'] as num).toDouble(),
         longitude: (json['longitude'] as num).toDouble(),
+        placeName: json['place_name'] as String?,
         description: json['description'] as String?,
         severity: json['severity'] as String?,
         aiConfidence: json['ai_confidence'] == null
@@ -47,10 +52,10 @@ class Complaint {
         detectionsCount: (json['detections_count'] as num?)?.toInt() ?? 0,
         aiSummary: json['ai_summary'] as String?,
         status: json['status'] as String? ?? 'Reported',
-        assignedDepartment:
-            json['assigned_department'] as String? ?? 'Unassigned',
+        assignedDepartment: json['assigned_department'] as String? ?? 'Unassigned',
         notes: json['notes'] as String?,
         createdAt: DateTime.parse(json['created_at'] as String),
+        updatedAt: DateTime.parse(json['updated_at'] as String),
       );
 
   Complaint copyWith({
@@ -63,6 +68,7 @@ class Complaint {
         imageUrl: imageUrl,
         latitude: latitude,
         longitude: longitude,
+        placeName: placeName,
         description: description,
         severity: severity,
         aiConfidence: aiConfidence,
@@ -72,5 +78,6 @@ class Complaint {
         assignedDepartment: assignedDepartment ?? this.assignedDepartment,
         notes: notes ?? this.notes,
         createdAt: createdAt,
+        updatedAt: updatedAt,
       );
 }

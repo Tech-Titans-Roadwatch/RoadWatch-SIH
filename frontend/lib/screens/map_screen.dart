@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:flutter/foundation.dart';
 import 'package:roadwatch/models/complaint.dart';
 import 'package:roadwatch/services/api_service.dart';
 import 'package:roadwatch/widgets/severity_badge.dart';
@@ -75,9 +74,7 @@ class _MapScreenState extends State<MapScreen> {
                       children: [
                         // OpenStreetMap tiles — no API key required
                         TileLayer(
-                          urlTemplate: kIsWeb
-                              ? 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
-                              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                           userAgentPackageName: 'com.roadwatch.app',
                         ),
                         MarkerLayer(
