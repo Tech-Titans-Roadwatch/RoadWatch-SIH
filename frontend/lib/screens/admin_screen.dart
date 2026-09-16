@@ -35,16 +35,6 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
-  Future<void> _updateStatus(Complaint c, String newStatus) async {
-    await ApiService.updateComplaint(c.id, status: newStatus);
-    _load();
-  }
-
-  Future<void> _updateDepartment(Complaint c, String dept) async {
-    await ApiService.updateComplaint(c.id, assignedDepartment: dept);
-    _load();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,7 +67,7 @@ class _AdminScreenState extends State<AdminScreen> {
                             complaint: _complaints[i],
                           );
                         },
-                     ),
+                       ),
           ),
         ],
       ),

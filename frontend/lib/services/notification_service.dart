@@ -1,44 +1,115 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-/// Handles Firebase Cloud Messaging setup on the Flutter side.
-/// The backend sends the actual push when a complaint status changes.
-///
-/// Setup checklist:
-/// 1. Add google-services.json to flutter_app/android/app/
-/// 2. Follow the firebase_messaging Android setup in its pub.dev README
-/// 3. Call NotificationService.init() in main.dart before runApp()
 class NotificationService {
-  static final _messaging = FirebaseMessaging.instance;
+  static final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  static final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
-  /// Call once at app startup.
+  /// Call once at app startup in main.dart
   static Future<void> init() async {
-    // Request permission (iOS requires explicit grant; Android 13+ too)
-    await _messaging.requestPermission(alert: true, badge: true, sound: true);
+    // 1. Request permission (iOS + Android 13+)
+    NotificationSettings settings = await _firebaseMessaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    debugPrint('[FCM] User granted permission: ${settings.authorizationStatus}');
 
-    // Handle notifications when the app is in the foreground
+    // 2. Initialize local notifications plugin
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+
+    await _localNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        debugPrint('[LocalNotification] Tapped payload: ${response.payload}');
+        // TODO: handle navigation when user taps notification banner
+      },
+    );
+
+    // 3. Create Android Notification Channel for high-importance popups
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'roadwatch_status_channel',
+      'Pothole Status Updates',
+      description: 'Tracks submission, verification, assignment, and resolution',
+      importance: Importance.max,
+    );
+
+    await _localNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
+    // 4. Handle notifications when app is in the FOREGROUND
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint(
-          '[FCM] Foreground message: ${message.notification?.title} — ${message.notification?.body}');
-      // TODO: show an in-app snackbar/dialog using a GlobalKey<ScaffoldMessengerState>
+      debugPrint('[FCM] Foreground message: ${message.notification?.title} - ${message.notification?.body}');
+      
+      RemoteNotification? notification = message.notification;
+      AndroidNotification? android = message.notification?.android;
+
+      // Display a visible local banner when an FCM message arrives
+      if (notification != null) {
+        _localNotificationsPlugin.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              channel.id,
+              channel.name,
+              channelDescription: channel.description,
+              importance: Importance.max,
+              priority: Priority.high,
+              icon: android?.smallIcon ?? '@mipmap/ic_launcher',
+            ),
+          ),
+          payload: message.data['route'],
+        );
+      }
     });
 
-    // Handle notification tap when app is in background (but not terminated)
+    // 5. Handle notification tap when app is in background (not terminated)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('[FCM] Notification tapped: ${message.data}');
-      // TODO: navigate to the relevant complaint detail screen
+      debugPrint('[FCM] Notification tapped in background: ${message.data}');
     });
   }
 
   /// Returns the FCM device token for this installation.
-  /// Pass this to the backend when submitting a complaint so it can
-  /// send status-update notifications back to this specific device.
+  /// Pass this to your FastAPI backend when submitting reports so it can target this device.
   static Future<String?> getDeviceToken() async {
     try {
-      return await _messaging.getToken();
+      String? token = await _firebaseMessaging.getToken();
+      debugPrint('[FCM] Device Token: $token');
+      return token;
     } catch (e) {
       debugPrint('[FCM] Could not get device token: $e');
       return null;
     }
+  }
+
+  /// Helper method to trigger local status updates directly from UI actions
+  static Future<void> showLocalStatus({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'roadwatch_status_channel',
+      'Pothole Status Updates',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    await _localNotificationsPlugin.show(
+      id,
+      title,
+      body,
+      const NotificationDetails(android: androidDetails),
+    );
   }
 }

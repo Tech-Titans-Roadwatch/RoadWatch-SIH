@@ -3,21 +3,21 @@ import io
 import importlib
 import uuid
 import os
-from typing import List, Optional
+from typing import List, Optional, Any
 
 import cv2
 import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
-from ultralytics import YOLO
+from ultralytics import YOLO  # type: ignore
 
 # Load all dependencies via importlib (numbered folder names can't be imported directly)
-_db_mod      = importlib.import_module("app.database.connection")
+_db_mod    = importlib.import_module("app.database.connection")
 _schema_mod  = importlib.import_module("app.schemas.complaint")
 _svc_mod     = importlib.import_module("app.services.complaint_service")
 _notif_mod   = importlib.import_module("app.services.notification_service")
 
-get_db                 = _db_mod.get_db
+get_db              = _db_mod.get_db
 ComplaintOut         = _schema_mod.ComplaintOut
 ComplaintUpdate      = _schema_mod.ComplaintUpdate
 notify_status_change = _notif_mod.notify_status_change
@@ -70,12 +70,12 @@ async def create_complaint(
     if img_cv is None:
         raise HTTPException(status_code=400, detail="Invalid image file format.")
         
-    model = YOLO(weights_path)
-    results = model(img_cv, conf=conf_threshold)  # type: ignore
+    model = YOLO(weights_path)  # type: ignore
+    results: Any = model(img_cv, conf=conf_threshold)  # type: ignore
     
-    # Check if any objects were detected
-    detections = results[0].boxes  # type: ignore
-    if len(detections) == 0:
+    # Check if any objects were detected with explicit typing to satisfy Pylance
+    detections: Any = results[0].boxes  # type: ignore
+    if len(detections) == 0:  # type: ignore
         raise HTTPException(
             status_code=400, 
             detail="No pothole detected in this image. Please upload a valid road image."
@@ -92,6 +92,25 @@ async def create_complaint(
         device_token=device_token,
     )
 
+@router.post("/video", response_model=ComplaintOut)
+async def create_video_complaint(
+    video: UploadFile = File(...),
+    latitude: float = Form(...),
+    longitude: float = Form(...),
+    description: Optional[str] = Form(None),
+    device_token: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+  video_bytes = await video.read()
+  return await _svc_mod.create_video_complaint(
+      db=db,
+      video_bytes=video_bytes,
+      filename=video.filename or "upload.mp4",
+      latitude=latitude,
+      longitude=longitude,
+      description=description,
+      device_token=device_token,
+  )
 
 @router.patch("/{complaint_id}", response_model=ComplaintOut)
 def update_complaint(

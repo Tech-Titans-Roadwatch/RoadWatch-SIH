@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:camera/camera.dart';
 
 import 'package:roadwatch/models/complaint.dart';
 import 'package:roadwatch/services/api_service.dart';
@@ -9,6 +10,7 @@ import 'package:roadwatch/services/notification_service.dart';
 import 'package:roadwatch/widgets/severity_badge.dart';
 import 'package:roadwatch/theme/app_theme.dart';
 import 'package:roadwatch/utils/constants.dart';
+import 'package:roadwatch/screens/video_record_screen.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -19,7 +21,8 @@ class ReportScreen extends StatefulWidget {
 
 class _ReportScreenState extends State<ReportScreen> {
   // ── State ──────────────────────────────────────────────────────────────────
-  File? _photo;
+  File? _mediaFile; // Can hold either a photo or a video
+  bool _isVideo = false;
   Position? _position;
   final _descCtrl = TextEditingController();
   bool _capturingGps = false;
@@ -27,18 +30,81 @@ class _ReportScreenState extends State<ReportScreen> {
   String? _statusMsg;
   Complaint? _submitted;
 
-  // ── Photo ──────────────────────────────────────────────────────────────────
- // ── Photo ──────────────────────────────────────────────────────────────────
-  Future<void> _pickPhoto(ImageSource source) async {
+  // ── Media Selection (Photo or Video) ───────────────────────────────────────
+  Future<void> _pickPhoto() async {
     final picked = await ImagePicker()
-        .pickImage(source: source, imageQuality: kImageQuality);
-    if (picked != null) setState(() => _photo = File(picked.path));
+        .pickImage(source: ImageSource.camera, imageQuality: kImageQuality);
+    
+    if (!mounted) return;
+
+    if (picked != null) {
+      setState(() {
+        _mediaFile = File(picked.path);
+        _isVideo = false;
+      });
+    }
   }
 
-  void _showPhotoOptions() {
-    // Strictly enforce live camera capture to prevent gallery tampering
-    _pickPhoto(ImageSource.camera);
+  Future<void> _recordVideo() async {
+    try {
+      final cameras = await availableCameras();
+
+      // Guard check: ensures the widget is still in the tree before using context or setState
+      if (!mounted) return;
+
+      if (cameras.isEmpty) {
+        setState(() => _statusMsg = 'No cameras available on this device.');
+        return;
+      }
+
+      final File? recordedVideo = await Navigator.push<File?>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VideoRecordScreen(cameras: cameras),
+        ),
+      );
+
+      // Guard check: ensures the widget is still mounted after returning from VideoRecordScreen
+      if (!mounted) return;
+
+      if (recordedVideo != null) {
+        setState(() {
+          _mediaFile = recordedVideo;
+          _isVideo = true;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _statusMsg = 'Video recording error: $e');
+    }
   }
+
+  void _showMediaOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Wrap(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.camera_alt_rounded),
+            title: const Text('Take Road Photo (AI Analysis)'),
+            onTap: () {
+              Navigator.pop(context);
+              _pickPhoto();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.videocam_rounded),
+            title: const Text('Record Live Video Option'),
+            onTap: () {
+              Navigator.pop(context);
+              _recordVideo();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── GPS ────────────────────────────────────────────────────────────────────
   Future<void> _captureGps() async {
     setState(() {
@@ -60,9 +126,17 @@ class _ReportScreenState extends State<ReportScreen> {
         throw Exception(
             'Location permission permanently denied — enable it in Settings.');
       }
+      const LocationSettings locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+      );
       final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
-      setState(() => _position = pos);
+        locationSettings: locationSettings,
+      );
+
+      setState(() {
+        _position = pos;
+        _statusMsg = 'GPS acquired successfully!';
+      });
     } catch (e) {
       setState(() => _statusMsg = 'GPS error: $e');
     } finally {
@@ -72,8 +146,8 @@ class _ReportScreenState extends State<ReportScreen> {
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   Future<void> _submit() async {
-    if (_photo == null) {
-      setState(() => _statusMsg = 'Please add a photo first.');
+    if (_mediaFile == null) {
+      setState(() => _statusMsg = 'Please add a photo or video first.');
       return;
     }
     if (_position == null) {
@@ -82,23 +156,45 @@ class _ReportScreenState extends State<ReportScreen> {
     }
     setState(() {
       _submitting = true;
-      _statusMsg = 'Uploading photo and running AI detection…';
+      _statusMsg = _isVideo ? 'Uploading video report…' : 'Uploading photo and running AI detection…';
       _submitted = null;
     });
     try {
       final token = await NotificationService.getDeviceToken();
-      final c = await ApiService.submitComplaint(
-        photo: _photo!,
-        latitude: _position!.latitude,
-        longitude: _position!.longitude,
-        description: _descCtrl.text,
-        deviceToken: token,
+      
+      Complaint c;
+      if (_isVideo) {
+        c = await ApiService.submitVideoComplaint(
+          video: _mediaFile!,
+          latitude: _position!.latitude,
+          longitude: _position!.longitude,
+          description: _descCtrl.text,
+          deviceToken: token,
+        );
+      } else {
+        c = await ApiService.submitComplaint(
+          photo: _mediaFile!,
+          latitude: _position!.latitude,
+          longitude: _position!.longitude,
+          description: _descCtrl.text,
+          deviceToken: token,
+        );
+      }
+
+      if (!mounted) return;
+
+      // ── TRIGGER LIFECYCLE NOTIFICATION (SUBMITTED) ────────────────────────
+      await NotificationService.showLocalStatus(
+        id: 1,
+        title: 'Report Submitted! 🚀',
+        body: 'Your pothole report has been successfully sent to RoadWatch.',
       );
+
       setState(() {
         _submitted = c;
         _statusMsg = 'Report submitted successfully!';
-        // Reset form
-        _photo = null;
+        _mediaFile = null;
+        _isVideo = false;
         _position = null;
         _descCtrl.clear();
       });
@@ -119,7 +215,7 @@ class _ReportScreenState extends State<ReportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _PhotoPicker(photo: _photo, onTap: _showPhotoOptions),
+            _MediaPicker(mediaFile: _mediaFile, isVideo: _isVideo, onTap: _showMediaOptions),
             const SizedBox(height: 16),
             _GpsButton(
               position: _position,
@@ -166,10 +262,11 @@ class _ReportScreenState extends State<ReportScreen> {
 
 // ── Sub-widgets (private to this screen) ─────────────────────────────────────
 
-class _PhotoPicker extends StatelessWidget {
-  final File? photo;
+class _MediaPicker extends StatelessWidget {
+  final File? mediaFile;
+  final bool isVideo;
   final VoidCallback onTap;
-  const _PhotoPicker({required this.photo, required this.onTap});
+  const _MediaPicker({required this.mediaFile, required this.isVideo, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -182,20 +279,35 @@ class _PhotoPicker extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.grey.shade300),
         ),
-        child: photo == null
+        child: mediaFile == null
             ? const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.add_a_photo_rounded, size: 44, color: Colors.grey),
                   SizedBox(height: 8),
-                  Text('Tap to take / choose a photo',
+                  Text('Tap to capture photo or record video',
                       style: TextStyle(color: Colors.grey)),
                 ],
               )
             : ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Image.file(photo!, fit: BoxFit.cover,
-                    width: double.infinity)),
+                child: isVideo
+                    ? Container(
+                        color: Colors.black,
+                        child: const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.videocam, size: 50, color: Colors.white),
+                              SizedBox(height: 8),
+                              Text('Video Recorded Ready to Submit',
+                                  style: TextStyle(color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                      )
+                    : Image.file(mediaFile!, fit: BoxFit.cover,
+                        width: double.infinity)),
       ),
     );
   }
