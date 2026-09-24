@@ -7,7 +7,6 @@ SWAP MODEL INSTRUCTIONS (one step):
   Nothing else changes.
 """
 from dataclasses import dataclass
-from dataclasses import dataclass
 from typing import List
 
 from ultralytics import YOLO
