@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:roadwatch/models/complaint.dart';
 
 // Define your backend/Ngrok base URL here so all methods can access it
-const String baseUrl = 'https://underwire-grumble-shifting.ngrok-free.dev';
+const String baseUrl = 'https://roadwatch-sih.onrender.com';
 
 class ApiService {
   // ── Complaints ──────────────────────────────────────────────────────────
@@ -125,6 +125,14 @@ class ApiService {
 
   // ── Helpers ─────────────────────────────────────────────────────────────
 
-  /// Builds the full URL for a relative image path returned by the backend.
-  static String imageUrl(String relativePath) => '$baseUrl$relativePath';
+ /// Builds the full URL for a relative image path returned by the backend.
+  static String imageUrl(String relativePath) {
+    if (relativePath.isEmpty) return '';
+    if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+      return relativePath;
+    }
+    return relativePath.startsWith('/') 
+        ? '$baseUrl$relativePath' 
+        : '$baseUrl/$relativePath';
+  }
 }
