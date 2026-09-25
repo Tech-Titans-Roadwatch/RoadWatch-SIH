@@ -1,12 +1,24 @@
 import 'package:flutter/material.dart';
-
+import 'package:roadwatch/services/api_service.dart';
 import 'package:roadwatch/theme/app_theme.dart';
 import 'report_screen.dart';
 import 'map_screen.dart';
 import 'admin_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Automatically flush and sync any pending offline reports when app opens
+    ApiService.syncOfflineQueue();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +34,7 @@ class HomeScreen extends StatelessWidget {
             children: [
               // Logo / hero image from assets/images/
               Image.asset(
-                'assets/images/roadwatch_logo.png', // Replace with your actual logo filename in assets/images/
+                'assets/images/roadwatch_logo.png',
                 height: 72,
                 width: 72,
               ),

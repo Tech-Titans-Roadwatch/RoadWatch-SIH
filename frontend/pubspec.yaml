@@ -13,6 +13,7 @@ dependencies:
 
   # Networking
   http: ^1.2.1
+  shared_preferences: ^2.2.2
 
   # Camera + gallery
   image_picker: ^1.1.2
